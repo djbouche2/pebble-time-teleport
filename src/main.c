@@ -1,6 +1,7 @@
 /* -- Specify TZ settings here -- */
 
 // 0 is your local time
+// Negative values are okay
 
 #define TZ_OFFSETS {0, 15, 18, 4, 7}
 #define TZ_NAMES {"PT", "Per", "Syd", "Bue", "UTC"}
@@ -9,45 +10,40 @@
 
 #include <pebble.h>
 
-#define PEBBLE_OFFS_X 32
-#define PEBBLE_OFFS_Y 0
-  
+// Field metrics
 #define COL_COUNT 3
 #define ROW_COUNT 5
-  
 #define FIELD_COUNT (COL_COUNT * ROW_COUNT)
 
+// Char buffer limits
 #define LABEL_MAX 5
-  
 #define HR_MAX 3
 
-  
-static int y_offsets[ROW_COUNT] = TZ_OFFSETS;
-static char y_names[ROW_COUNT][LABEL_MAX] = TZ_NAMES; 
-  
+// Drawing metrics
+#define PEBBLE_OFFS_X 32
+#define PEBBLE_OFFS_Y 0
 static int COL_OFFS[COL_COUNT] = {0, 37, 75};
-
 static int COL_SIZES[COL_COUNT] = {37, 38, 37};
-
 static int ROW_OFFS[ROW_COUNT] = {0, 32, 62, 92, 122};
-
 static int ROW_SIZES[ROW_COUNT] = {32, 30, 30, 30, 30};
 
-static int shift = 48;
-
-
+// For hour calculations
 static int x_offsets[COL_COUNT] = {-1, 0, 1};
+static int y_offsets[ROW_COUNT] = TZ_OFFSETS;
+static char y_names[ROW_COUNT][LABEL_MAX] = TZ_NAMES; 
 
+// Normalized center for shift state
+#define SHIFT_CENTER 48
+    
+// State
+static int shift = SHIFT_CENTER;
+static int current_hr;
+static int hr;
 static char field_values[FIELD_COUNT][HR_MAX];
 
-static int current_hr;
-
-static int hr;
-
+// UI
 static TextLayer *text_fields[FIELD_COUNT];
-
 static TextLayer *text_labels[ROW_COUNT];
-
 static Window *s_main_window;  
 
 static void initialize_text_fields() {
@@ -126,23 +122,25 @@ static void main_window_unload(Window *window) {
 }
 
 static void down_single_click_handler(ClickRecognizerRef recognizer, void *context) {
-  shift = ((shift + 1) % 24) + 48;
+  // Shift forward one hour
+  shift = ((shift + 1) % 24) + SHIFT_CENTER;
   update_text_fields();
 }
 
 static void up_single_click_handler(ClickRecognizerRef recognizer, void *context) {
-  shift = ((shift - 1) % 24) + 48;
+  // Shift backwards one hour
+  shift = ((shift - 1) % 24) + SHIFT_CENTER;
   update_text_fields();
 }
 
 static void select_single_click_handler(ClickRecognizerRef recognizer, void *context) {
-  shift = 48;
+  // Reset to current time
+  shift = SHIFT_CENTER;
   sync_hour();
   update_text_fields();
 }
 
 static void config_provider(Window *window) {
- // single click / repeat-on-hold config:
   window_single_click_subscribe(BUTTON_ID_DOWN, down_single_click_handler);
   window_single_click_subscribe(BUTTON_ID_UP, up_single_click_handler);
   window_single_click_subscribe(BUTTON_ID_SELECT, select_single_click_handler);
@@ -155,6 +153,7 @@ static void init() {
   // Create main Window element and assign to pointer
   s_main_window = window_create();
 
+  // Click handler config
   window_set_click_config_provider(s_main_window, (ClickConfigProvider) config_provider);  
   
   // Set handlers to manage the elements inside the Window
@@ -166,9 +165,11 @@ static void init() {
   // Show the Window on the watch, with animated=true
   window_stack_push(s_main_window, true);
   
-  // Make sure the time is displayed from the start
+  // Initialize current_hr and sync with hr
   update_time();
   sync_hour();
+  
+  // Initial text field update
   update_text_fields();
 }
 
